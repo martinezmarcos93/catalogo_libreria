@@ -36,6 +36,7 @@ Aplicación web completa para la administración de librerías físicas o digita
 
 ## 📦 Estructura del proyecto
 proyecto/
+
 ├── app.html # Interfaz completa (frontend)
 
 ├── main.py # Servidor HTTP y lógica backend

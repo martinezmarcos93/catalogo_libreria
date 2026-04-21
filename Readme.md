@@ -37,9 +37,13 @@ Aplicación web completa para la administración de librerías físicas o digita
 ## 📦 Estructura del proyecto
 proyecto/
 ├── app.html # Interfaz completa (frontend)
+
 ├── main.py # Servidor HTTP y lógica backend
+
 ├── data/ # Base de datos SQLite (catalogo.db, ventas.db, app.db)
+
 ├── assets/ # Logos e imágenes subidas por el usuario
+
 └── README.md # Este archivo
 
 

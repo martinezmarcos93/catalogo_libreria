@@ -7,6 +7,14 @@ import os, sys, json, sqlite3, hashlib, base64, webbrowser, threading, mimetypes
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
+# System tray (solo Windows, requiere pystray y Pillow)
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    TRAY_AVAILABLE = True
+except ImportError:
+    TRAY_AVAILABLE = False
+
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 HTML_FILE  = os.path.join(BASE_DIR, "app.html")
 DATA_DIR   = os.path.join(BASE_DIR, "data")
@@ -405,25 +413,106 @@ class H(BaseHTTPRequestHandler):
                 self.jres({"ok": False, "error": str(e)}, 400)
         else: self.nf()
 
+# ══ Tray icon ═════════════════════════════════════════════════════════════════
+def make_tray_icon():
+    """Genera un icono simple (libro azul) si no hay un .ico disponible."""
+    size = 64
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    # Fondo azul redondeado
+    draw.rounded_rectangle([4, 4, 60, 60], radius=10, fill=(26, 111, 212, 255))
+    # Simbolo libro (lineas blancas)
+    draw.rectangle([18, 16, 46, 48], fill=(255, 255, 255, 220))
+    draw.rectangle([20, 18, 44, 46], fill=(26, 111, 212, 255))
+    draw.line([22, 24, 42, 24], fill=(255,255,255,220), width=2)
+    draw.line([22, 30, 42, 30], fill=(255,255,255,220), width=2)
+    draw.line([22, 36, 36, 36], fill=(255,255,255,220), width=2)
+    return img
+
+def run_tray(server, url, nombre):
+    """Corre el icono del system tray en el hilo principal."""
+
+    # Intentar cargar logo propio de la libreria
+    logo_path = os.path.join(ASSETS_DIR, get_cfg("logo_filename") or "")
+    if logo_path and os.path.isfile(logo_path):
+        try:
+            icon_img = Image.open(logo_path).resize((64, 64)).convert("RGBA")
+        except Exception:
+            icon_img = make_tray_icon()
+    else:
+        icon_img = make_tray_icon()
+
+    nombre_libreria = nombre or "Sistema de Libreria"
+
+    def on_abrir(icon, item):
+        webbrowser.open(url)
+
+    def on_cerrar(icon, item):
+        icon.stop()
+        server.shutdown()
+        sys.exit(0)
+
+    menu = pystray.Menu(
+        pystray.MenuItem(f"{nombre_libreria}", None, enabled=False),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Abrir en el navegador", on_abrir),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Cerrar el programa", on_cerrar),
+    )
+
+    icon = pystray.Icon(
+        name="SistemaLibreria",
+        icon=icon_img,
+        title=nombre_libreria,
+        menu=menu,
+    )
+    icon.run()  # bloquea el hilo principal hasta que se llame icon.stop()
+
 # ══ Arranque ══════════════════════════════════════════════════════════════════
 def main():
     init_db()
     server = HTTPServer((HOST, PORT), H)
     url = f"http://{HOST}:{PORT}"
+
+    # Leer nombre de la libreria para mostrarlo en el tray
+    nombre = get_cfg("nombre_libreria") or "Sistema de Libreria"
+
     print()
-    print("  ╔═══════════════════════════════════════════════╗")
-    print("  ║   Sistema de Gestión para Librerías           ║")
-    print("  ╚═══════════════════════════════════════════════╝")
-    print(f"  Servidor activo:  {url}")
-    print(f"  Datos:            {DATA_DIR}")
-    print(f"  Ctrl+C para detener.")
+    print("  Sistema de Gestion para Librerias")
+    print(f"  Servidor: {url}")
+    print(f"  Datos:    {DATA_DIR}")
     print()
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n  [✓] Servidor detenido.")
-        sys.exit(0)
+
+    # Servidor HTTP en hilo secundario
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    # Abrir navegador tras 1.5 segundos
+    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    if TRAY_AVAILABLE:
+        # Con tray: el icono corre en el hilo principal
+        # El usuario cierra desde el menu del tray
+        print("  Icono en la bandeja del sistema activo.")
+        print("  Para cerrar: clic derecho en el icono > Cerrar el programa")
+        try:
+            run_tray(server, url, nombre)
+        except Exception as e:
+            print(f"  [Tray error] {e} — usando modo consola.")
+            try:
+                server_thread.join()
+            except KeyboardInterrupt:
+                pass
+    else:
+        # Sin tray: esperar Ctrl+C en consola
+        print("  Para cerrar: presiona Ctrl+C en esta ventana")
+        try:
+            server_thread.join()
+        except KeyboardInterrupt:
+            print("  Servidor detenido.")
+    
+    server.shutdown()
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

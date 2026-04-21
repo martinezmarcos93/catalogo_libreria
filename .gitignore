@@ -1,0 +1,21 @@
+# ── Compilacion ──────────────────────────────────────────────────────────────
+dist/
+build/
+output_instalador/
+*.spec.bak
+
+# ── Datos de usuarios (nunca al repositorio) ─────────────────────────────────
+data/app.db
+assets/logo_libreria.*
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+
+# ── Sistema operativo ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
